@@ -52,3 +52,7 @@
 - `src/xExtension-TitleDedup/`：可安装的 FreshRSS 扩展目录
 - `examples/`：示例配置
 - `docs/`：设计说明
+
+## License
+
+MIT
