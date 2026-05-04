@@ -1,0 +1,14 @@
+{
+  "rules": [
+    {
+      "name": "36Kr AI -> Source media",
+      "enabled": true,
+      "source_feed_names": ["新智元", "智东西", "机器之心", "量子位"],
+      "target_feed_names": ["36Kr-AI"],
+      "lookback_days": 14,
+      "normalize_whitespace": true,
+      "normalize_case": true,
+      "strip_punctuation": false
+    }
+  ]
+}
