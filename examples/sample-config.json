@@ -8,7 +8,7 @@
       "lookback_days": 14,
       "normalize_whitespace": true,
       "normalize_case": true,
-      "strip_punctuation": false
+      "strip_punctuation": true
     }
   ]
 }
