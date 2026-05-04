@@ -111,7 +111,7 @@ if (!function_exists('titleDedupRenderRuleCard')) {
         ob_start();
         $normalizeEnabled = titleDedupNormalizeEnabled($rule);
         ?>
-        <section class="title-dedup-rule-card" data-title-dedup-rule>
+        <section class="title-dedup-rule-card" data-title-dedup-rule data-title-dedup-rule-index="<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>">
             <hr class="title-dedup-rule-divider">
             <table class="title-dedup-head-table" cellspacing="0" cellpadding="0" border="0">
                 <tr>
@@ -417,4 +417,103 @@ if (!function_exists('titleDedupRenderRuleCard')) {
 .title-dedup-meta-table-last {
     margin-top: 16px;
 }
+
 </style>
+
+<script>
+(function () {
+    var key = 'titleDedupScrollY:' + window.location.pathname + window.location.search;
+    var anchorKey = key + ':anchor';
+    var restoreAttempts = [0, 50, 200, 600];
+
+    if (window.history && 'scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+    }
+
+    function getRuleCards() {
+        return Array.prototype.slice.call(document.querySelectorAll('[data-title-dedup-rule]'));
+    }
+
+    function getAnchorRuleIndex() {
+        var cards = getRuleCards();
+        var candidate = null;
+        var bestTop = -Infinity;
+        var marker = 140;
+
+        for (var i = 0; i < cards.length; i++) {
+            var card = cards[i];
+            var rect = card.getBoundingClientRect();
+            if (rect.bottom <= 0) {
+                continue;
+            }
+            if (rect.top <= marker && rect.top > bestTop) {
+                candidate = card.getAttribute('data-title-dedup-rule-index') || '';
+                bestTop = rect.top;
+            }
+        }
+
+        if (candidate !== null) {
+            return candidate;
+        }
+
+        return cards.length ? (cards[0].getAttribute('data-title-dedup-rule-index') || '') : '';
+    }
+
+    function saveScroll() {
+        try {
+            window.sessionStorage.setItem(key, String(window.scrollY || window.pageYOffset || 0));
+            window.sessionStorage.setItem(anchorKey, getAnchorRuleIndex());
+        } catch (e) {
+        }
+    }
+
+    function restoreScrollOnce() {
+        var value = null;
+        var anchor = '';
+        try {
+            value = window.sessionStorage.getItem(key);
+            anchor = window.sessionStorage.getItem(anchorKey) || '';
+        } catch (e) {
+            return;
+        }
+
+        if (anchor) {
+            var selector = '[data-title-dedup-rule-index="' + anchor.replace(/"/g, '\\"') + '"]';
+            var el = document.querySelector(selector);
+            if (el && typeof el.scrollIntoView === 'function') {
+                el.scrollIntoView({ block: 'start' });
+            }
+        }
+
+        if (value !== null) {
+            var y = parseInt(value, 10);
+            if (!isNaN(y)) {
+                window.scrollTo(0, y);
+            }
+        }
+    }
+
+    function restoreScroll() {
+        for (var i = 0; i < restoreAttempts.length; i++) {
+            window.setTimeout(restoreScrollOnce, restoreAttempts[i]);
+        }
+
+        window.setTimeout(function () {
+            try {
+                window.sessionStorage.removeItem(key);
+                window.sessionStorage.removeItem(anchorKey);
+            } catch (e) {
+            }
+        }, 1200);
+    }
+
+    var form = document.querySelector('.title-dedup-form');
+    if (form) {
+        form.addEventListener('submit', saveScroll, true);
+    }
+    window.addEventListener('beforeunload', saveScroll);
+    window.addEventListener('pagehide', saveScroll);
+    window.addEventListener('load', restoreScroll);
+    window.addEventListener('pageshow', restoreScroll);
+})();
+</script>

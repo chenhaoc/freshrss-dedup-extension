@@ -55,7 +55,7 @@ final class TitleDedupExtension extends Minz_Extension
         }
 
         if ($action === 'add_rule') {
-            $rulesPost[] = $this->blankRulePost();
+            array_unshift($rulesPost, $this->blankRulePost());
             return $rulesPost;
         }
 
