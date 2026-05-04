@@ -2,6 +2,42 @@
 
 final class RuleRepository
 {
+    public static function buildConfigFromForm($rules)
+    {
+        if (!is_array($rules)) {
+            return null;
+        }
+
+        $normalizedRules = [];
+        foreach ($rules as $rule) {
+            if (!is_array($rule)) {
+                continue;
+            }
+
+            $sourceFeedIds = self::normalizeIds($rule['source_feed_ids'] ?? []);
+            $targetFeedIds = self::normalizeIds($rule['target_feed_ids'] ?? []);
+
+            $normalizedRules[] = [
+                'name' => trim((string)($rule['name'] ?? '')),
+                'enabled' => self::normalizeBool($rule['enabled'] ?? false),
+                'source_feed_ids' => $sourceFeedIds,
+                'source_feed_names' => [],
+                'target_feed_ids' => $targetFeedIds,
+                'target_feed_names' => [],
+                'lookback_days' => max(1, (int)($rule['lookback_days'] ?? 14)),
+                'normalize_whitespace' => array_key_exists('normalize_whitespace', $rule)
+                    ? self::normalizeBool($rule['normalize_whitespace'])
+                    : false,
+                'normalize_case' => array_key_exists('normalize_case', $rule)
+                    ? self::normalizeBool($rule['normalize_case'])
+                    : false,
+                'strip_punctuation' => false,
+            ];
+        }
+
+        return ['rules' => $normalizedRules];
+    }
+
     public static function parseConfig($json)
     {
         $json = trim($json);
@@ -29,9 +65,6 @@ final class RuleRepository
             $targetFeedIds = self::normalizeIds($rule['target_feed_ids'] ?? []);
             $sourceFeedNames = self::normalizeNames($rule['source_feed_names'] ?? []);
             $targetFeedNames = self::normalizeNames($rule['target_feed_names'] ?? []);
-            if (($sourceFeedIds === [] && $sourceFeedNames === []) || ($targetFeedIds === [] && $targetFeedNames === [])) {
-                continue;
-            }
 
             $rules[] = [
                 'name' => trim((string)($rule['name'] ?? '')),
@@ -82,5 +115,18 @@ final class RuleRepository
         sort($names, SORT_STRING);
 
         return $names;
+    }
+
+    private static function normalizeBool($value)
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return $value === 1;
+        }
+
+        $value = strtolower(trim((string)$value));
+        return in_array($value, ['1', 'true', 'yes', 'on'], true);
     }
 }

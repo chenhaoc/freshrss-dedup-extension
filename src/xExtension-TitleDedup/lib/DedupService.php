@@ -29,6 +29,9 @@ final class DedupService
             if (!$rule['enabled']) {
                 continue;
             }
+            if ($rule['source_feed_ids'] === [] || $rule['target_feed_ids'] === []) {
+                continue;
+            }
 
             $normalizedTitle = $this->normalizeTitle($title, $rule);
             if ($normalizedTitle === '') {
@@ -58,6 +61,9 @@ final class DedupService
 
         $entryDao = FreshRSS_Factory::createEntryDao();
         $rule = $this->resolveRule($rule);
+        if ($rule['source_feed_ids'] === [] || $rule['target_feed_ids'] === []) {
+            return;
+        }
         foreach ($rule['source_feed_ids'] as $sourceFeedId) {
             $sourceEntries = $this->fetchEntriesByFeeds($entryDao, [$sourceFeedId], $rule['lookback_days']);
             foreach ($sourceEntries as $sourceEntry) {
