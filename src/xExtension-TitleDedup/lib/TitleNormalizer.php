@@ -10,10 +10,8 @@ final class TitleNormalizer
             $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
         }
 
-        if (!empty($options['strip_punctuation'])) {
-            $value = preg_replace('/[\p{P}\p{S}]+/u', '', $value) ?? $value;
-            $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
-        }
+        $value = preg_replace('/[\p{P}\p{S}]+/u', '', $value) ?? $value;
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
 
         if (!empty($options['normalize_case'])) {
             $value = mb_strtolower($value, 'UTF-8');
