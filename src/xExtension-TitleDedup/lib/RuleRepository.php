@@ -16,6 +16,7 @@ final class RuleRepository
 
             $sourceFeedIds = self::normalizeIds($rule['source_feed_ids'] ?? []);
             $targetFeedIds = self::normalizeIds($rule['target_feed_ids'] ?? []);
+            $normalizeAll = self::normalizeBool($rule['normalize_all'] ?? false);
 
             $normalizedRules[] = [
                 'name' => trim((string)($rule['name'] ?? '')),
@@ -25,13 +26,9 @@ final class RuleRepository
                 'target_feed_ids' => $targetFeedIds,
                 'target_feed_names' => [],
                 'lookback_days' => max(1, (int)($rule['lookback_days'] ?? 14)),
-                'normalize_whitespace' => array_key_exists('normalize_whitespace', $rule)
-                    ? self::normalizeBool($rule['normalize_whitespace'])
-                    : false,
-                'normalize_case' => array_key_exists('normalize_case', $rule)
-                    ? self::normalizeBool($rule['normalize_case'])
-                    : false,
-                'strip_punctuation' => false,
+                'normalize_whitespace' => $normalizeAll,
+                'normalize_case' => $normalizeAll,
+                'strip_punctuation' => $normalizeAll,
             ];
         }
 

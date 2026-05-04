@@ -14,7 +14,7 @@ if ($rules === []) {
         'lookback_days' => 14,
         'normalize_whitespace' => true,
         'normalize_case' => true,
-        'strip_punctuation' => false,
+        'strip_punctuation' => true,
     ]];
 }
 
@@ -24,31 +24,16 @@ foreach ($feeds as $feed) {
     $feedLabelMap[$feed['id']] = $feed['label'];
 }
 
-if (!function_exists('titleDedupJsAddRule')) {
-    function titleDedupJsAddRule(): string
+if (!function_exists('titleDedupNormalizeEnabled')) {
+    function titleDedupNormalizeEnabled($rule): bool
     {
-        return "var root=document.getElementById('title-dedup-rules');var tpl=document.getElementById('title-dedup-rule-template');if(!root||!tpl){return false;}var idx=Date.now();var html=tpl.innerHTML.replace(/__INDEX__/g,String(idx));var wrap=document.createElement('div');wrap.innerHTML=html.trim();if(wrap.firstElementChild){root.appendChild(wrap.firstElementChild);}return false;";
-    }
-}
+        if (!empty($rule['normalize_all'])) {
+            return true;
+        }
 
-if (!function_exists('titleDedupJsRemoveRule')) {
-    function titleDedupJsRemoveRule(): string
-    {
-        return "var c=this.closest('[data-title-dedup-rule]');if(c){c.remove();}return false;";
-    }
-}
-
-if (!function_exists('titleDedupJsAddFeed')) {
-    function titleDedupJsAddFeed(): string
-    {
-        return "var p=this.closest('[data-feed-panel]');if(!p){return false;}var s=p.querySelector('[data-role=feed-picker]');var l=p.querySelector('[data-role=feed-chip-list]');var n=p.dataset.inputName;if(!s||!l||!n){return false;}var i=s.value;if(!i){return false;}var e=Array.from(l.querySelectorAll('[data-feed-id]')).some(function(c){return c.dataset.feedId===i;});if(e){s.value='';return false;}var o=s.options[s.selectedIndex];if(!o){return false;}var chip=document.createElement('span');chip.className='title-dedup-feed-chip';chip.dataset.feedId=i;chip.innerHTML='<span class=\"title-dedup-feed-chip-label\"></span><button type=\"button\" class=\"title-dedup-chip-remove\" aria-label=\"移除\">×</button><input type=\"hidden\">';chip.querySelector('.title-dedup-feed-chip-label').textContent=o.text;chip.querySelector('input').name=n;chip.querySelector('input').value=i;l.appendChild(chip);s.value='';return false;";
-    }
-}
-
-if (!function_exists('titleDedupJsRemoveFeed')) {
-    function titleDedupJsRemoveFeed(): string
-    {
-        return "var c=this.closest('.title-dedup-feed-chip');if(c){c.remove();}return false;";
+        return !empty($rule['normalize_whitespace'])
+            || !empty($rule['normalize_case'])
+            || !empty($rule['strip_punctuation']);
     }
 }
 
@@ -80,34 +65,40 @@ if (!function_exists('titleDedupRenderFeedPanel')) {
         $inputName = 'rules[' . $ruleIndex . '][' . $side . '_feed_ids][]';
         ?>
         <div class="title-dedup-feed-panel" data-feed-panel data-input-name="<?php echo htmlspecialchars($inputName, ENT_QUOTES, 'UTF-8'); ?>">
-            <div class="title-dedup-feed-panel-head">
-                <span class="title-dedup-feed-panel-title"><?php echo htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?></span>
-                <select
-                    class="title-dedup-picker"
-                    data-role="feed-picker"
-                    name="rules[<?php echo htmlspecialchars((string)$ruleIndex, ENT_QUOTES, 'UTF-8'); ?>][<?php echo htmlspecialchars($side, ENT_QUOTES, 'UTF-8'); ?>_feed_picker]"
-                >
-                    <option value="">选择订阅…</option>
-                    <?php foreach ($feeds as $feed): ?>
-                        <option value="<?php echo htmlspecialchars($feed['id'], ENT_QUOTES, 'UTF-8'); ?>" data-feed-label="<?php echo htmlspecialchars($feed['label'], ENT_QUOTES, 'UTF-8'); ?>">
-                            <?php echo htmlspecialchars($feed['label'], ENT_QUOTES, 'UTF-8'); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <button
-                    type="submit"
-                    class="btn"
-                    name="rule_action"
-                    value="add_<?php echo htmlspecialchars($side . ':' . $ruleIndex, ENT_QUOTES, 'UTF-8'); ?>"
-                >添加</button>
-            </div>
+            <div class="title-dedup-feed-panel-title"><?php echo htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?></div>
+            <div class="title-dedup-feed-panel-help"><?php echo htmlspecialchars($help, ENT_QUOTES, 'UTF-8'); ?></div>
+            <table class="title-dedup-panel-table" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                    <td class="title-dedup-panel-select">
+                        <select
+                            class="title-dedup-picker"
+                            data-role="feed-picker"
+                            name="rules[<?php echo htmlspecialchars((string)$ruleIndex, ENT_QUOTES, 'UTF-8'); ?>][<?php echo htmlspecialchars($side, ENT_QUOTES, 'UTF-8'); ?>_feed_picker]"
+                        >
+                            <option value="">选择订阅…</option>
+                            <?php foreach ($feeds as $feed): ?>
+                                <option value="<?php echo htmlspecialchars($feed['id'], ENT_QUOTES, 'UTF-8'); ?>" data-feed-label="<?php echo htmlspecialchars($feed['label'], ENT_QUOTES, 'UTF-8'); ?>">
+                                    <?php echo htmlspecialchars($feed['label'], ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
+                    <td class="title-dedup-panel-button">
+                        <button
+                            type="submit"
+                            class="btn"
+                            name="rule_action"
+                            value="add_<?php echo htmlspecialchars($side . ':' . $ruleIndex, ENT_QUOTES, 'UTF-8'); ?>"
+                        >添加</button>
+                    </td>
+                </tr>
+            </table>
             <div class="title-dedup-feed-chips" data-role="feed-chip-list">
                 <?php foreach ($selectedIds as $feedId): ?>
                     <?php if (!isset($feedLabelMap[$feedId])) { continue; } ?>
                     <?php echo titleDedupRenderFeedChip($ruleIndex, $side, $inputName, $feedId, $feedLabelMap[$feedId]); ?>
                 <?php endforeach; ?>
             </div>
-            <div class="form-help"><?php echo htmlspecialchars($help, ENT_QUOTES, 'UTF-8'); ?></div>
         </div>
         <?php
         return ob_get_clean();
@@ -118,116 +109,141 @@ if (!function_exists('titleDedupRenderRuleCard')) {
     function titleDedupRenderRuleCard($index, $rule, $feeds, $feedLabelMap, $sourceSelectedIds, $targetSelectedIds): string
     {
         ob_start();
+        $normalizeEnabled = titleDedupNormalizeEnabled($rule);
         ?>
         <section class="title-dedup-rule-card" data-title-dedup-rule>
-            <div class="form-group">
-                <label class="group-name" for="rule_name_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>">规则名</label>
-                <div class="group-controls">
-                    <input
-                        type="text"
-                        id="rule_name_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>"
-                        name="rules[<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>][name]"
-                        value="<?php echo htmlspecialchars((string)($rule['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-                        placeholder="例如：36Kr-AI 去重"
-                    >
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label class="group-name" for="rule_enabled_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>">启用</label>
-                <div class="group-controls">
-                    <input
-                        type="checkbox"
-                        id="rule_enabled_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>"
-                        name="rules[<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>][enabled]"
-                        value="1"
-                        <?php echo !isset($rule['enabled']) || $rule['enabled'] ? 'checked' : ''; ?>
-                    >
-                </div>
-            </div>
-
-            <div class="title-dedup-feed-grid">
-                <?php
-                echo titleDedupRenderFeedPanel(
-                    $index,
-                    'source',
-                    $feeds,
-                    $feedLabelMap,
-                    $sourceSelectedIds,
-                    '参考源',
-                    '这些源里出现过的同标题文章，会作为去重依据'
-                );
-                echo titleDedupRenderFeedPanel(
-                    $index,
-                    'target',
-                    $feeds,
-                    $feedLabelMap,
-                    $targetSelectedIds,
-                    '目标源',
-                    '命中的文章会自动已读'
-                );
-                ?>
-            </div>
-
-            <div class="form-group">
-                <label class="group-name" for="rule_lookback_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>">回看天数</label>
-                <div class="group-controls">
-                    <input
-                        type="number"
-                        id="rule_lookback_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>"
-                        name="rules[<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>][lookback_days]"
-                        min="1"
-                        max="3650"
-                        value="<?php echo htmlspecialchars((string)($rule['lookback_days'] ?? 14), ENT_QUOTES, 'UTF-8'); ?>"
-                    >
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label class="group-name">归一化</label>
-                <div class="group-controls">
-                    <label>
+            <hr class="title-dedup-rule-divider">
+            <table class="title-dedup-head-table" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                    <td class="title-dedup-head-label">
+                        <label for="rule_name_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>">规则名</label>
+                    </td>
+                    <td class="title-dedup-head-input">
                         <input
-                            type="checkbox"
-                            name="rules[<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>][normalize_whitespace]"
-                            value="1"
-                            <?php echo !isset($rule['normalize_whitespace']) || $rule['normalize_whitespace'] ? 'checked' : ''; ?>
+                            type="text"
+                            id="rule_name_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>"
+                            name="rules[<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>][name]"
+                            value="<?php echo htmlspecialchars((string)($rule['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                            placeholder="例如：36Kr-AI 去重"
                         >
-                        压缩空白
-                    </label>
-                    <label style="margin-left:12px;">
-                        <input
-                            type="checkbox"
-                            name="rules[<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>][normalize_case]"
-                            value="1"
-                            <?php echo !isset($rule['normalize_case']) || $rule['normalize_case'] ? 'checked' : ''; ?>
-                        >
-                        忽略大小写
-                    </label>
-                    <div class="form-help">标点和符号会在比较前自动移除</div>
-                </div>
-            </div>
+                    </td>
+                    <td class="title-dedup-head-check">
+                        <label for="rule_enabled_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>">
+                            <input
+                                type="checkbox"
+                                id="rule_enabled_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>"
+                                name="rules[<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>][enabled]"
+                                value="1"
+                                <?php echo !isset($rule['enabled']) || $rule['enabled'] ? 'checked' : ''; ?>
+                            >
+                            启用
+                        </label>
+                    </td>
+                    <td class="title-dedup-head-button">
+                        <button
+                            type="submit"
+                            class="btn"
+                            name="rule_action"
+                            value="remove_rule:<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>"
+                        >删除规则组</button>
+                    </td>
+                </tr>
+            </table>
 
-            <div class="form-group form-actions">
-                <div class="group-controls">
-                    <button
-                        type="submit"
-                        class="btn"
-                        name="rule_action"
-                        value="remove_rule:<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>"
-                    >删除规则组</button>
-                </div>
-            </div>
+            <div class="title-dedup-spacer">&nbsp;</div>
+            <?php
+            echo titleDedupRenderFeedPanel(
+                $index,
+                'source',
+                $feeds,
+                $feedLabelMap,
+                $sourceSelectedIds,
+                '参考源',
+                '这些源里出现过的同标题文章，会作为去重依据'
+            );
+            ?>
+
+            <div class="title-dedup-spacer">&nbsp;</div>
+            <?php
+            echo titleDedupRenderFeedPanel(
+                $index,
+                'target',
+                $feeds,
+                $feedLabelMap,
+                $targetSelectedIds,
+                '目标源',
+                '命中的文章会自动已读'
+            );
+            ?>
+
+            <div class="title-dedup-spacer">&nbsp;</div>
+            <table class="title-dedup-meta-table" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                    <td class="title-dedup-meta-label">
+                        <label for="rule_lookback_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>">回看天数</label>
+                    </td>
+                    <td class="title-dedup-meta-value">
+                        <input
+                            type="number"
+                            id="rule_lookback_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>"
+                            name="rules[<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>][lookback_days]"
+                            min="1"
+                            max="3650"
+                            value="<?php echo htmlspecialchars((string)($rule['lookback_days'] ?? 14), ENT_QUOTES, 'UTF-8'); ?>"
+                        >
+                    </td>
+                </tr>
+            </table>
+
+            <table class="title-dedup-meta-table title-dedup-meta-table-last" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                    <td class="title-dedup-meta-label">
+                        <label for="rule_normalize_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>">归一化</label>
+                    </td>
+                    <td class="title-dedup-meta-value">
+                        <label for="rule_normalize_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>">
+                            <input
+                                type="checkbox"
+                                id="rule_normalize_<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>"
+                                name="rules[<?php echo htmlspecialchars((string)$index, ENT_QUOTES, 'UTF-8'); ?>][normalize_all]"
+                                value="1"
+                                <?php echo $normalizeEnabled ? 'checked' : ''; ?>
+                            >
+                            压缩空白、忽略大小写、删除标点符号
+                        </label>
+                    </td>
+                </tr>
+            </table>
+            <hr class="title-dedup-rule-divider title-dedup-rule-divider-bottom">
         </section>
         <?php
         return ob_get_clean();
     }
 }
 ?>
-<form action="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>" method="post">
+<form action="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>" method="post" class="title-dedup-form">
     <input type="hidden" name="_csrf" value="<?php echo FreshRSS_Auth::csrfToken(); ?>" />
-    <h2>Title Dedup</h2>
-    <p>直接选择现有订阅作为参考源和目标源，支持多个规则组。</p>
+    <table class="title-dedup-page-table" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+            <td class="title-dedup-page-title-cell">
+                <h2 class="title-dedup-page-title">Title Dedup</h2>
+            </td>
+            <td class="title-dedup-page-button-cell">
+                <a
+                    class="btn title-dedup-open-full"
+                    href="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>"
+                    target="_top"
+                    rel="noopener"
+                >在完整页面中编辑</a>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2" class="title-dedup-page-copy-cell">
+                <p class="title-dedup-page-copy">用于按标题把目标源中已在参考源出现过的文章自动标记为已读。</p>
+                <p class="title-dedup-subtitle">侧边栏内编辑时会自动关闭，请点击右侧按钮，在完整页面中编辑。</p>
+            </td>
+        </tr>
+    </table>
 
     <div id="title-dedup-rules">
         <?php foreach (array_values($rules) as $index => $rule): ?>
@@ -251,7 +267,7 @@ if (!function_exists('titleDedupRenderRuleCard')) {
             'lookback_days' => 14,
             'normalize_whitespace' => true,
             'normalize_case' => true,
-            'strip_punctuation' => false,
+            'strip_punctuation' => true,
         ];
         echo titleDedupRenderRuleCard('__INDEX__', $blankRule, $feeds, $feedLabelMap, [], []);
         ?>
@@ -266,49 +282,106 @@ if (!function_exists('titleDedupRenderRuleCard')) {
 </form>
 
 <style>
-.title-dedup-rule-card {
-    border: 1px solid #d9d9d9;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 16px;
-    background: #fafafa;
+.title-dedup-form {
+    width: 760px;
+    margin: 0 auto;
+    text-align: left;
 }
 
-.title-dedup-feed-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-    margin-bottom: 12px;
+.title-dedup-page-table,
+.title-dedup-head-table,
+.title-dedup-panel-table,
+.title-dedup-meta-table {
+    border: 0;
+    border-collapse: collapse;
+    border-spacing: 0;
 }
 
-.title-dedup-feed-panel {
-    border: 1px solid #e2e2e2;
-    border-radius: 6px;
-    padding: 12px;
-    background: #fff;
+.title-dedup-page-table {
+    width: 760px;
 }
 
-.title-dedup-feed-panel-head {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
+.title-dedup-page-title {
+    margin: 0;
+}
+
+.title-dedup-page-button-cell {
+    padding-left: 16px;
+    white-space: nowrap;
+}
+
+.title-dedup-page-copy-cell {
+    padding-top: 8px;
+}
+
+.title-dedup-page-copy,
+.title-dedup-subtitle {
+    margin: 0 0 8px;
+    color: #666;
+    font-size: 0.95em;
+}
+
+.title-dedup-rule-divider {
+    margin: 0 0 18px;
+    border: 0;
+    border-top: 1px solid #d9d9d9;
+}
+
+.title-dedup-rule-divider-bottom {
+    margin: 24px 0 0;
+}
+
+.title-dedup-head-label,
+.title-dedup-meta-label {
+    padding-right: 12px;
+    white-space: nowrap;
+}
+
+.title-dedup-head-input {
+    width: 360px;
+    padding-right: 16px;
+}
+
+.title-dedup-head-input input {
+    width: 100%;
+}
+
+.title-dedup-head-check {
+    padding-right: 16px;
+    white-space: nowrap;
+}
+
+.title-dedup-head-button,
+.title-dedup-panel-button {
+    white-space: nowrap;
+}
+
+.title-dedup-spacer {
+    line-height: 18px;
 }
 
 .title-dedup-feed-panel-title {
-    font-weight: 600;
-    min-width: 72px;
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
 }
 
-.title-dedup-picker {
-    flex: 1 1 180px;
-    min-width: 0;
+.title-dedup-feed-panel-help {
+    margin: 4px 0 8px;
+    color: #666;
+}
+
+.title-dedup-panel-select {
+    width: 520px;
+    padding-right: 12px;
+}
+
+.title-dedup-panel-select select {
+    width: 100%;
 }
 
 .title-dedup-feed-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
     margin-top: 10px;
 }
 
@@ -316,6 +389,7 @@ if (!function_exists('titleDedupRenderRuleCard')) {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    margin: 0 8px 8px 0;
     border: 1px solid #d8d8d8;
     border-radius: 999px;
     padding: 4px 8px 4px 10px;
@@ -336,15 +410,11 @@ if (!function_exists('titleDedupRenderRuleCard')) {
     cursor: pointer;
 }
 
-.form-help {
-    margin-top: 8px;
-    color: #666;
-    font-size: 0.9em;
+.title-dedup-meta-table {
+    margin-top: 0;
 }
 
-@media (min-width: 1100px) {
-    .title-dedup-feed-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+.title-dedup-meta-table-last {
+    margin-top: 16px;
 }
 </style>

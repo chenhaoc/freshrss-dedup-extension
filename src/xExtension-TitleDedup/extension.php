@@ -116,8 +116,10 @@ final class TitleDedupExtension extends Minz_Extension
             'target_feed_ids' => [],
             'target_feed_picker' => '',
             'lookback_days' => 14,
+            'normalize_all' => 1,
             'normalize_whitespace' => 1,
             'normalize_case' => 1,
+            'strip_punctuation' => 1,
         ];
     }
 
@@ -173,7 +175,7 @@ final class TitleDedupExtension extends Minz_Extension
             $feeds[] = [
                 'id' => (string)$feed->id(),
                 'name' => $name,
-                'label' => $name . ' (#' . $feed->id() . ')',
+                'label' => $name,
             ];
         }
 

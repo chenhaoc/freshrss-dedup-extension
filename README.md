@@ -14,7 +14,7 @@
 
 ## 配置
 
-在扩展配置页粘贴 JSON。示例可直接参考 [sample-config.json](</Users/hao.chen/工作文档/Work/readyou/freshrss-dedup-extension/examples/sample-config.json>)。
+在扩展配置页直接配置。若从侧边栏打开，请先点“在完整页面中编辑”。
 
 规则含义：
 
