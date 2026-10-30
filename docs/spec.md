@@ -1,73 +1,86 @@
-# FreshRSS 单向同标题自动已读扩展设计
+# Title Dedup: design notes
 
-## 目标
+[Русская версия](./spec.ru.md) · [中文](./spec.zh-CN.md)
 
-当目标订阅 B 新增文章时，如果它的标题与参考订阅 A 中已有文章的标题一致，则把 B 的新文章自动标记为已读。
+## Goal
 
-## 范围
+When a new entry arrives in a target feed and an entry with the same normalized title already exists in a source feed of the same rule, mark the target entry as read.
 
-- 支持多个规则组
-- 每个规则组包含多个参考源 A 和多个目标源 B
-- 单向生效：A 影响 B，B 不反向影响 A
-- 基于标题归一化后的完全一致判断
+## Scope
 
-## 不做的事
+- Several rules, each with several source feeds and several target feeds
+- One-way by default: sources affect targets, not the other way round
+- A feed may be both source and target. Listing all sections of a site on both sides keeps the first copy of each story unread and marks every later copy as read
+- Exact match after title normalization
 
-- 不做全文相似度去重
-- 不做跨语言语义去重
-- 不修改 FreshRSS 核心
-- 不做客户端侧去重
+## Out of scope
 
-## 方案
+- Full-text similarity
+- Cross-language deduplication
+- Changes to the FreshRSS core
+- Client-side deduplication
 
-做一个 FreshRSS 用户扩展，使用 `entry_before_add` 钩子处理新条目。
+## How it works
 
-### 运行流程
+### New entries (`entry_before_add` hook)
 
-1. FreshRSS 拉取到一条新文章。
-2. 扩展检查该文章所属 feed 是否命中某个规则组的目标源 B。
-3. 归一化标题。
-4. 查询该规则组的参考源 A 中是否已有同标题文章。
-5. 若命中，则将当前条目标记为已读。
+The hook runs for new entries only, after the user's filter actions, so an entry already marked as read by a filter is treated as read.
 
-### 回扫
+FreshRSS keeps new entries in `_entrytmp` until the end of a refresh, then moves them to `_entry`. Lookups therefore cover both tables, so copies fetched in the same refresh are compared too.
 
-为处理“B 先到、A 后到”的情况，增加维护回扫：
+On the first new entry of a request that concerns a rule, the titles of the rule's feeds within the lookback window are loaded once, then kept up to date in memory. For each new entry, in arrival order:
 
-- 定期检查 B 中未读文章
-- 若其标题在 A 中已存在，则补标为已读
+1. If the entry belongs to a target feed, is unread, and its title is already known from another source feed, it is a duplicate and is marked as read.
+2. If the entry belongs to a source feed, is unread and is not a duplicate, unread target entries with the same title in other feeds are marked as read (the source copy arrived after them).
+3. The title is remembered as known for its feed; an unread target entry that is not a duplicate is remembered in case its source arrives later.
 
-## 配置
+A read entry only serves as a reference: it never marks other entries. Otherwise a copy marked by an earlier pass could mark the surviving original.
 
-每个规则组包含：
+Updated versions of known entries are ignored.
+
+### Title normalization
+
+HTML entities are decoded and invisible format characters (soft hyphen, zero-width space) removed. Then, depending on the rule:
+
+- whitespace: runs of whitespace collapse to one space;
+- case: lower case, and `ё` compares equal to `е`;
+- punctuation: punctuation and decorative symbols, with the spaces around them, become one space, so `A—B` and `A — B` compare equal. Currency and math symbols are kept, so `100$` and `100€`, or `C++` and `C`, stay different.
+
+### One-off backfill (`freshrss_user_maintenance` hook)
+
+After the effective rules change (renaming a rule or adding an empty one does not count), the next maintenance run replays the existing entries within the lookback window in arrival order (by entry ID), with the same logic as above. Later maintenance runs do nothing, so an entry the user marks as unread again stays unread. Each later change of the rules repeats the backfill, which leaves already deduplicated entries unchanged.
+
+## Configuration
+
+Stored per user, as JSON, in the extension's user configuration. Each rule has:
 
 - `name`
-- `source_feed_ids`
-- `target_feed_ids`
 - `enabled`
+- `source_feed_ids`, `source_feed_names`
+- `target_feed_ids`, `target_feed_names`
 - `lookback_days`
 - `normalize_whitespace`
 - `normalize_case`
 - `strip_punctuation`
 
-## 文件结构
+Feed names are resolved to IDs when the rules are read, case-insensitively and after decoding HTML entities. The settings page stores feed IDs only.
 
-- `src/metadata.json`
-- `src/extension.php`
-- `src/lib/TitleNormalizer.php`
-- `src/lib/RuleRepository.php`
-- `src/lib/DuplicateMatcher.php`
-- `src/configure.phtml`
+Version 0.1 stored the rules in the system configuration; they are still read from there until the user saves the settings.
+
+## Files
+
+- `metadata.json`
+- `extension.php`: hooks, settings form handling, configuration storage
+- `configure.php`, `configure.phtml`: settings page
+- `static/configure.css`, `static/configure.js`: styles and script of the settings page, as files because FreshRSS's Content Security Policy blocks inline ones; the script is also loaded on the extensions page, so the settings work in the sidebar
+- `lib/DedupService.php`: deduplication logic
+- `lib/DedupDAO.php`: database queries
+- `lib/TitleNormalizer.php`
+- `lib/RuleRepository.php`: parsing and validation of the rules
+- `i18n/`: translations
 - `examples/sample-config.json`
 
-## 风险
+## Risks
 
-- 标题完全一致不等于同一新闻，可能误杀
-- 参考源过多时查询成本会上升
-- 只靠标题，难覆盖改标题转载
-
-## 验收
-
-- B 的新文章与 A 同标题时自动已读
-- 多规则组可同时生效
-- 回扫能补处理先到后到顺序反转的情况
+- Identical titles do not always mean the same story, so unrelated entries may be marked as read
+- Reposts with a rewritten title are not detected

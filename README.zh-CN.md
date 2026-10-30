@@ -1,55 +1,81 @@
 # FreshRSS Title Dedup
 
-一个 FreshRSS 扩展，用来做“单向跨源同标题去重”。
+一个 FreshRSS 扩展，按标题在多个订阅源之间去重。
 
-当目标源 B 收到新文章时，如果它的标题已经在参考源 A 中出现过，这篇文章会自动标记为已读。
+其他语言：[English](./README.md) · [Русский](./README.ru.md)
+
+当目标源 B 收到新文章时，如果同样的标题已经在参考源 A 中出现过，这篇文章会自动标记为已读。
 
 ## 适合什么场景
 
-- 同一条新闻会被多个资讯源重复发布
+- 同一条新闻会被多个资讯源重复发布，例如同一网站的多个栏目
 - 你想保留主信源未读，把转载源自动跳过
 - 你希望规则按订阅分组，而不是全局混在一起
 
 ## 功能
 
 - 单向规则：A 影响 B，B 不反向影响 A
+- 同一个订阅可以既是参考源又是目标源：把一个网站的所有栏目同时列在两边，每条新闻只有最先到达的那一份保持未读
 - 支持多个规则组
 - 每个规则组可配置多个参考源、多个目标源
-- 支持标题归一化：压缩空白、忽略大小写、移除标点
-- 支持维护回扫，处理“目标源先到、参考源后到”的情况
-- 提供可视化配置页，直接选择现有订阅
+- 标题归一化：空白、大小写、标点，各自单独开关
+- 与到达顺序无关：无论参考源的那一份是更早、在同一次刷新中、还是更晚到达，目标源中的文章都会被标为已读
+- 保存规则后，对已有文章做一次性回扫
+- 每个用户有自己的规则
+- 配置页：订阅按分类分组，支持筛选和批量选择；界面有英文、俄文、中文
+
+## 工作方式
+
+- 拉取到新文章时，用它的标题与回看天数内参考源的标题比对，包括同一次刷新中更早拉取、尚未被 FreshRSS 写入主表的文章。命中则把这篇目标源文章标为已读。
+- 拉取到新的未读参考源文章时，目标源中同标题的未读文章会被标为已读。已读文章只作为比对依据，不会把其他文章标为已读。
+- 每个规则在每次请求中只加载一次标题，所以一次刷新对每个规则只查询一次数据库。
+- 保存规则后，下一次刷新会对回看天数内的已有文章检查一次。之后只检查新文章，所以你手动标回未读的文章会保持未读。
 
 ## 安装
 
-把 [xExtension-TitleDedup](./xExtension-TitleDedup) 整个目录复制到 FreshRSS 的 `extensions/` 目录下，然后在 FreshRSS 后台启用 `Title Dedup`。
+仓库根目录即扩展本身。将仓库克隆到 FreshRSS 的 `extensions/` 目录下，然后在用户的扩展设置中启用 `Title Dedup`：
+
+```sh
+cd /path/to/FreshRSS/extensions
+git clone https://github.com/chenhaoc/freshrss-dedup-extension.git xExtension-TitleDedup
+```
+
+更新：在 `extensions/xExtension-TitleDedup` 中执行 `git pull`。
+
+已在 FreshRSS 1.30.4（PHP 8.3、PostgreSQL）上测试。
+
+### 从 0.1 升级
+
+0.1 是系统扩展，0.2 是用户扩展。升级后需要在每个用户的扩展设置中重新启用。在用户第一次保存配置之前，仍会从旧的系统配置中读取规则。
 
 ## 使用
 
-1. 打开扩展配置页。
-2. 若配置页是从侧边栏打开，先点“在完整页面中编辑”。
-3. 新建规则组。
-4. 选择参考源和目标源。
-5. 设置回看天数与标题归一化。
-6. 保存配置。
+1. 打开扩展配置页：可以在侧边栏中直接编辑，需要更大空间时点“在完整页面中编辑”。
+2. 勾选参考源。在筛选框中输入订阅或分类名称的一部分（例如网站名），再点“选中显示的”即可一次勾选所有匹配的订阅。列表收起时会显示已选的订阅。
+3. 勾选目标源，或勾选“目标源与参考源相同”，在一组订阅之间互相去重。
+4. 设置回看天数和标题比对选项。
+5. 保存。点“新增规则组”可以再添加一个规则。
 
 ## 规则说明
 
+规则以 JSON 形式保存在用户的扩展配置中（示例见 [examples/sample-config.json](./examples/sample-config.json)）。每个规则包含：
+
+- `name`：规则名，只在配置页中显示
+- `enabled`：默认 `true`
 - `source_feed_ids`：参考源 A
 - `source_feed_names`：参考源 A 的订阅名，支持与 `source_feed_ids` 混用
 - `target_feed_ids`：目标源 B
 - `target_feed_names`：目标源 B 的订阅名，支持与 `target_feed_ids` 混用
-- `lookback_days`：只在最近 N 天内比对
-- `normalize_case`：忽略大小写
-- `normalize_whitespace`：压缩连续空白
-- `strip_punctuation`：移除标点后再比对
+- `lookback_days`：只在最近 N 天内比对，范围 1 到 3650，默认 14
+- `normalize_whitespace`：压缩连续空白，默认 `true`
+- `normalize_case`：忽略大小写，`ё` 视同 `е`，默认 `true`
+- `strip_punctuation`：忽略标点和装饰性符号；JSON 中默认 `false`，配置页中新建的规则默认开启
 
-## 示例
-
-示例配置见 [examples/sample-config.json](./examples/sample-config.json)。
+没有参考源或没有目标源的规则不起作用。订阅名在读取规则时按不区分大小写的方式匹配。从配置页保存时只保存订阅 ID：当时不存在的订阅名会被丢弃。
 
 ## 仓库结构
 
-- `xExtension-TitleDedup/`：可安装的 FreshRSS 扩展目录
+- `extension.php`、`configure.php(tml)`、`metadata.json`、`lib/`、`i18n/`、`static/`：扩展本体
 - `examples/`：示例配置
 - `docs/`：设计说明
 

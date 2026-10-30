@@ -1,0 +1,156 @@
+<?php
+declare(strict_types=1);
+/** @var TitleDedupExtension $this */
+
+$rules = $this->currentRules();
+if ($rules === []) {
+    $rules = [TitleDedupExtension::blankRule()];
+}
+
+// Feeds grouped by category, in the user's category order.
+$groups = [];
+foreach ($this->feedOptions() as $feed) {
+    $groups[$feed['group']][] = $feed;
+}
+
+$e = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+
+if (!function_exists('titleDedupRenderFeedList')) {
+    /**
+     * @param array<string,list<array{id:string,name:string,label:string,group:string}>> $groups
+     * @param list<string> $selectedIds
+     */
+    function titleDedupRenderFeedList(int $index, string $side, array $groups, array $selectedIds, string $title, string $help, bool $hidden = false): string
+    {
+        $e = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        $selected = array_fill_keys($selectedIds, true);
+        $selectedNames = [];
+        foreach ($groups as $feeds) {
+            foreach ($feeds as $feed) {
+                if (isset($selected[$feed['id']])) {
+                    $selectedNames[] = $feed['label'];
+                }
+            }
+        }
+        $inputName = 'rules[' . $index . '][' . $side . '_feed_ids][]';
+
+        ob_start();
+        ?>
+        <div class="form-group title-dedup-feeds-group<?= $hidden ? ' title-dedup-hidden' : '' ?>" data-title-dedup-side="<?= $e($side) ?>">
+            <div class="group-name"><?= $e($title) ?></div>
+            <div class="group-controls">
+                <p class="help"><?= $e($help) ?></p>
+                <details class="title-dedup-feeds" <?= $selectedNames === [] ? 'open' : '' ?>>
+                    <summary>
+                        <?= _t('ext.title_dedup.feeds.selected') ?>:
+                        <span class="title-dedup-count"><?= count($selectedNames) ?></span>
+                        <span class="title-dedup-selected-names"><?= $e(implode(', ', $selectedNames)) ?></span>
+                    </summary>
+                    <div class="title-dedup-tools">
+                        <input type="search" class="title-dedup-filter" placeholder="<?= _t('ext.title_dedup.feeds.filter') ?>" aria-label="<?= _t('ext.title_dedup.feeds.filter') ?>" />
+                        <button type="button" class="btn title-dedup-select-visible"><?= _t('ext.title_dedup.feeds.select_visible') ?></button>
+                        <button type="button" class="btn title-dedup-clear-visible"><?= _t('ext.title_dedup.feeds.clear_visible') ?></button>
+                    </div>
+                    <div class="title-dedup-feed-list">
+                        <?php foreach ($groups as $groupName => $feeds): ?>
+                            <fieldset class="title-dedup-category">
+                                <legend><?= $e((string)$groupName) ?></legend>
+                                <?php foreach ($feeds as $feed): ?>
+                                    <label class="title-dedup-feed">
+                                        <input type="checkbox" name="<?= $e($inputName) ?>" value="<?= $e($feed['id']) ?>" <?= isset($selected[$feed['id']]) ? 'checked' : '' ?> />
+                                        <span class="title-dedup-feed-name"><?= $e($feed['label']) ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </fieldset>
+                        <?php endforeach; ?>
+                    </div>
+                </details>
+            </div>
+        </div>
+        <?php
+        return (string)ob_get_clean();
+    }
+}
+?>
+<link rel="stylesheet" href="<?= $this->getFileUrl('configure.css') ?>" />
+<form action="<?= _url('extension', 'configure', 'e', urlencode($this->getName())) ?>" method="post" class="title-dedup-form">
+    <input type="hidden" name="_csrf" value="<?= FreshRSS_Auth::csrfToken() ?>" />
+    <?php /* Enter in a text field submits the first button of the form: make that one "save", not "delete rule". */ ?>
+    <button type="submit" name="rule_action" value="save" class="title-dedup-default-submit" tabindex="-1" aria-hidden="true"></button>
+
+    <p class="title-dedup-open-full">
+        <a class="btn" href="<?= _url('extension', 'configure', 'e', urlencode($this->getName())) ?>" target="_top"><?= _t('ext.title_dedup.open_full') ?></a>
+    </p>
+    <p class="help"><?= _t('ext.title_dedup.intro') ?></p>
+    <p class="help"><?= _t('ext.title_dedup.backfill_hint') ?></p>
+
+    <?php foreach (array_values($rules) as $index => $rule): ?>
+        <?php
+        $sourceIds = $this->selectedFeedIds($rule, 'source');
+        $targetIds = $this->selectedFeedIds($rule, 'target');
+        $sameTargets = $sourceIds !== [] && $sourceIds === $targetIds;
+        $prefix = 'rules[' . $index . ']';
+        $id = 'title_dedup_' . $index . '_';
+        ?>
+        <fieldset class="title-dedup-rule" data-title-dedup-rule="<?= $index ?>">
+            <legend data-untitled="<?= _t('ext.title_dedup.rule.untitled') ?>"><?= $e(($rule['name'] ?? '') !== '' ? (string)$rule['name'] : _t('ext.title_dedup.rule.untitled')) ?></legend>
+
+            <div class="form-group">
+                <label class="group-name" for="<?= $id ?>name"><?= _t('ext.title_dedup.rule.name') ?></label>
+                <div class="group-controls">
+                    <input type="text" id="<?= $id ?>name" name="<?= $prefix ?>[name]" value="<?= $e((string)($rule['name'] ?? '')) ?>" placeholder="<?= _t('ext.title_dedup.rule.name_placeholder') ?>" />
+                    <label class="checkbox" for="<?= $id ?>enabled">
+                        <input type="checkbox" id="<?= $id ?>enabled" name="<?= $prefix ?>[enabled]" value="1" <?= !isset($rule['enabled']) || $rule['enabled'] ? 'checked' : '' ?> />
+                        <?= _t('ext.title_dedup.rule.enabled') ?>
+                    </label>
+                </div>
+            </div>
+
+            <?= titleDedupRenderFeedList($index, 'source', $groups, $sourceIds, _t('ext.title_dedup.source.title'), _t('ext.title_dedup.source.help')) ?>
+
+            <div class="form-group">
+                <div class="group-controls">
+                    <label class="checkbox" for="<?= $id ?>same">
+                        <input type="checkbox" class="title-dedup-same" id="<?= $id ?>same" name="<?= $prefix ?>[targets_same]" value="1" <?= $sameTargets ? 'checked' : '' ?> />
+                        <?= _t('ext.title_dedup.rule.targets_same') ?>
+                    </label>
+                    <p class="help"><?= _t('ext.title_dedup.rule.targets_same_help') ?></p>
+                </div>
+            </div>
+
+            <?= titleDedupRenderFeedList($index, 'target', $groups, $targetIds, _t('ext.title_dedup.target.title'), _t('ext.title_dedup.target.help'), $sameTargets) ?>
+
+            <div class="form-group">
+                <label class="group-name" for="<?= $id ?>lookback"><?= _t('ext.title_dedup.lookback') ?></label>
+                <div class="group-controls">
+                    <input type="number" id="<?= $id ?>lookback" name="<?= $prefix ?>[lookback_days]" min="1" max="3650" value="<?= (int)($rule['lookback_days'] ?? 14) ?>" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="group-name"><?= _t('ext.title_dedup.normalize.title') ?></div>
+                <div class="group-controls">
+                    <?php foreach (['whitespace' => 'normalize_whitespace', 'case' => 'normalize_case', 'punctuation' => 'strip_punctuation'] as $label => $key): ?>
+                        <label class="checkbox" for="<?= $id . $key ?>">
+                            <input type="checkbox" id="<?= $id . $key ?>" name="<?= $prefix ?>[<?= $key ?>]" value="1" <?= !empty($rule[$key]) ? 'checked' : '' ?> />
+                            <?= _t('ext.title_dedup.normalize.' . $label) ?>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="group-controls">
+                    <button type="submit" class="btn btn-attention" name="rule_action" value="remove_rule:<?= $index ?>"><?= _t('ext.title_dedup.rule.remove') ?></button>
+                </div>
+            </div>
+        </fieldset>
+    <?php endforeach; ?>
+
+    <div class="form-group form-actions">
+        <div class="group-controls">
+            <button type="submit" class="btn btn-important" name="rule_action" value="save"><?= _t('ext.title_dedup.save') ?></button>
+            <button type="submit" class="btn" name="rule_action" value="add_rule"><?= _t('ext.title_dedup.rule.add') ?></button>
+        </div>
+    </div>
+</form>

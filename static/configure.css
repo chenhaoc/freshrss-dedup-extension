@@ -1,0 +1,82 @@
+/* Title Dedup settings page */
+
+.title-dedup-default-submit {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.title-dedup-rule {
+	margin-bottom: 2rem;
+}
+
+.title-dedup-js .title-dedup-hidden {
+	display: none;
+}
+
+.title-dedup-feeds > summary {
+	cursor: pointer;
+	padding: 0.25rem 0;
+}
+
+.title-dedup-count {
+	font-weight: bold;
+}
+
+.title-dedup-selected-names {
+	opacity: 0.7;
+	margin-left: 0.5rem;
+}
+
+.title-dedup-js .title-dedup-tools {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+	margin: 0.5rem 0;
+}
+
+.title-dedup-tools .title-dedup-filter {
+	flex: 1 1 14rem;
+	min-width: 10rem;
+}
+
+/* The filter and bulk buttons need the script; hide them until it runs. */
+.title-dedup-tools {
+	display: none;
+}
+
+.title-dedup-feed-list {
+	max-height: 24rem;
+	overflow-y: auto;
+	border: 1px solid rgba(128, 128, 128, 0.35);
+	border-radius: 4px;
+	padding: 0.25rem 0.75rem;
+}
+
+.title-dedup-category {
+	margin: 0.5rem 0;
+	padding: 0;
+	border: 0;
+}
+
+.title-dedup-category > legend {
+	font-weight: bold;
+	padding: 0;
+	margin-bottom: 0.25rem;
+	font-size: 0.95em;
+	border: 0;
+}
+
+.title-dedup-feed {
+	display: block;
+	padding: 0.1rem 0;
+	cursor: pointer;
+}
+
+.title-dedup-feed input {
+	margin-right: 0.4rem;
+}

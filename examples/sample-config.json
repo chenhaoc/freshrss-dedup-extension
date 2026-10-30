@@ -1,10 +1,20 @@
 {
   "rules": [
     {
-      "name": "36Kr AI -> Source media",
+      "name": "News site: all sections",
       "enabled": true,
-      "source_feed_names": ["新智元", "智东西", "机器之心", "量子位"],
-      "target_feed_names": ["36Kr-AI"],
+      "source_feed_names": ["Example News - Games", "Example News - Hardware", "Example News - Software"],
+      "target_feed_names": ["Example News - Games", "Example News - Hardware", "Example News - Software"],
+      "lookback_days": 14,
+      "normalize_whitespace": true,
+      "normalize_case": true,
+      "strip_punctuation": true
+    },
+    {
+      "name": "Aggregator -> original sources",
+      "enabled": true,
+      "source_feed_names": ["Original Source A", "Original Source B"],
+      "target_feed_names": ["Aggregator"],
       "lookback_days": 14,
       "normalize_whitespace": true,
       "normalize_case": true,
